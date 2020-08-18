@@ -105,7 +105,7 @@ int main(int argc, const char* argv[]) {
       AnimatedImage image;
       const W_CHAR* const file = GET_WARGV(argv, c);
       memset(&image, 0, sizeof(image));
-      WPRINTF("Decoding file: %s as %s/%sxxxx.%s\n",
+      WPRINTF("Decoding file: %s as %s/%sxxxxxxx.%s\n",
               file, dump_folder, prefix, suffix);
       if (!ReadAnimatedImage((const char*)file, &image, 0, NULL)) {
         WFPRINTF(stderr, "Error decoding file: %s\n Aborting.\n", file);
@@ -123,7 +123,7 @@ int main(int argc, const char* argv[]) {
         buffer.u.RGBA.rgba = image.frames[i].rgba;
         buffer.u.RGBA.stride = buffer.width * sizeof(uint32_t);
         buffer.u.RGBA.size = buffer.u.RGBA.stride * buffer.height;
-        WSNPRINTF(out_file, sizeof(out_file), "%s/%s%.4d.%s",
+        WSNPRINTF(out_file, sizeof(out_file), "%s/%s%.7d.%s",
                   dump_folder, prefix, i, suffix);
         if (!WebPSaveImage(&buffer, format, (const char*)out_file)) {
           WFPRINTF(stderr, "Error while saving image '%s'\n", out_file);
