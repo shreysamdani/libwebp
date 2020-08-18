@@ -73,6 +73,7 @@ typedef enum {
   ACTION_SET,
   ACTION_STRIP,
   ACTION_INFO,
+  ACTION_JSON_INFO,
   ACTION_HELP,
   ACTION_DURATION
 } ActionType;
@@ -285,6 +286,48 @@ static WebPMuxError DisplayInfo(const WebPMux* mux) {
     WebPDataClear(&image.bitstream);
     RETURN_IF_ERROR("Failed to retrieve the image\n");
   }
+
+  return WEBP_MUX_OK;
+}
+
+static WebPMuxError DisplayJSONInfo(const WebPMux* mux) {
+  int width, height;
+  int is_animated;
+  int nFrames = 1;
+  int duration = 0;
+  uint32_t flag;
+
+  WebPMuxError err = WebPMuxGetCanvasSize(mux, &width, &height);
+  assert(err == WEBP_MUX_OK);  // As WebPMuxCreate() was successful earlier.
+
+  err = WebPMuxGetFeatures(mux, &flag);
+  RETURN_IF_ERROR("Failed to retrieve features\n");
+
+  is_animated = flag & ANIMATION_FLAG;
+
+  if (is_animated) {
+    const WebPChunkId id = WEBP_CHUNK_ANMF;
+    const char* const type_str = "frame";
+
+    err = WebPMuxNumChunks(mux, id, &nFrames);
+    assert(err == WEBP_MUX_OK);
+
+    if (nFrames > 0) {
+      int i;
+      for (i = 1; i <= nFrames; i++) {
+        WebPMuxFrameInfo frame;
+        err = WebPMuxGetFrame(mux, i, &frame);
+        if (err == WEBP_MUX_OK) {
+          duration += frame.duration;
+        }
+        WebPDataClear(&frame.bitstream);
+        RETURN_IF_ERROR3("Failed to retrieve %s#%d\n", type_str, i);
+      }
+    }
+  }
+
+  printf("{ \"width\": %d, \"height\": %d, \"frames\": %d, \"duration\": %d, \"is_animated\": %s  }\n", 
+    width, height, nFrames, duration, is_animated ? "true" : "false");
 
   return WEBP_MUX_OK;
 }
@@ -714,6 +757,16 @@ static int ParseCommandLine(Config* config, const W_CHAR** const unicode_argv) {
           config->input_ = wargv[i + 1];
         }
         i += 2;
+      } else if (!strcmp(argv[i], "-json-info")) {
+        CHECK_NUM_ARGS_EXACTLY(2, ErrParse);
+        if (config->action_type_ != NIL_ACTION) {
+          ERROR_GOTO1("ERROR: Multiple actions specified.\n", ErrParse);
+        } else {
+          config->action_type_ = ACTION_JSON_INFO;
+          config->arg_count_ = 0;
+          config->input_ = wargv[i + 1];
+        }
+        i += 2;
       } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "-help")) {
         PrintHelp();
         DeleteConfig(config);
@@ -793,7 +846,7 @@ static int ValidateConfig(Config* const config) {
   }
 
   // Feature type.
-  if (FEATURETYPE_IS_NIL && config->action_type_ != ACTION_INFO) {
+  if (FEATURETYPE_IS_NIL && config->action_type_ != ACTION_INFO && config->action_type_ != ACTION_JSON_INFO) {
     ERROR_GOTO1("ERROR: No feature specified.\n", ErrValidate2);
   }
 
@@ -807,7 +860,7 @@ static int ValidateConfig(Config* const config) {
   }
 
   // Output file.
-  if (config->output_ == NULL && config->action_type_ != ACTION_INFO) {
+  if (config->output_ == NULL && config->action_type_ != ACTION_INFO && config->action_type_ != ACTION_JSON_INFO) {
     ERROR_GOTO1("ERROR: No output file specified.\n", ErrValidate2);
   }
 
@@ -1130,6 +1183,12 @@ static int Process(const Config* config) {
       ok = CreateMux(config->input_, &mux);
       if (!ok) goto Err2;
       ok = (DisplayInfo(mux) == WEBP_MUX_OK);
+      break;
+    }
+    case ACTION_JSON_INFO: {
+      ok = CreateMux(config->input_, &mux);
+      if (!ok) goto Err2;
+      ok = (DisplayJSONInfo(mux) == WEBP_MUX_OK);
       break;
     }
     default: {
