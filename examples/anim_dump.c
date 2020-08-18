@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 #include <string.h>  // for 'strcmp'.
+#include <limits.h>
 
 #include "./anim_util.h"
 #include "webp/decode.h"
@@ -40,6 +41,8 @@ int main(int argc, const char* argv[]) {
   const W_CHAR* dump_folder = TO_W_CHAR(".");
   const W_CHAR* prefix = TO_W_CHAR("dump_");
   const W_CHAR* suffix = TO_W_CHAR("png");
+  uint32_t start_frame = 0;
+  uint32_t end_frame = INT_MAX;
   WebPOutputFileFormat format = PNG;
   int c;
 
@@ -65,6 +68,20 @@ int main(int argc, const char* argv[]) {
         break;
       }
       prefix = GET_WARGV(argv, ++c);
+    } else if (!strcmp(argv[c], "-start_frame")) {
+      if (c + 1 == argc) {
+        fprintf(stderr, "missing argument after option '%s'\n", argv[c]);
+        error = 1;
+        break;
+      }
+      start_frame = atoi(GET_WARGV(argv, ++c));
+    } else if (!strcmp(argv[c], "-end_frame")) {
+      if (c + 1 == argc) {
+        fprintf(stderr, "missing argument after option '%s'\n", argv[c]);
+        error = 1;
+        break;
+      }
+      end_frame = atoi(GET_WARGV(argv, ++c));
     } else if (!strcmp(argv[c], "-tiff")) {
       format = TIFF;
       suffix = TO_W_CHAR("tiff");
@@ -95,7 +112,7 @@ int main(int argc, const char* argv[]) {
         error = 1;
         break;
       }
-      for (i = 0; !error && i < image.num_frames; ++i) {
+      for (i = start_frame; !error && i < end_frame && i < image.num_frames; ++i) {
         W_CHAR out_file[1024];
         WebPDecBuffer buffer;
         WebPInitDecBuffer(&buffer);
